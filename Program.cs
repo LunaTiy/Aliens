@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Diagnostics;
+using System.Linq;
 using System.Threading.Channels;
 
 namespace Aliens
@@ -10,12 +11,12 @@ namespace Aliens
 
 		public static void Main(string[] args)
 		{
-			if (!TryReadDataFromFile(FileName, out int[,] matrix))
+			if (!TryReadDataFromFile(FileName, out long[,] matrix))
 				throw new Exception("Can't read file");
 
-			int[,] bombsMatrix = GetBombMatrix(matrix);
-			int[,] prefixMatrix = ConvertMatrixToPrefixMatrix(matrix);
-			int result = GetSumOfSubMatrixInPrefixMatrix(prefixMatrix, bombsMatrix);
+			long[,] bombsMatrix = GetBombMatrix(matrix);
+			long[,] prefixMatrix = ConvertMatrixToPrefixMatrix(matrix);
+			long result = GetSumOfSubMatrixInPrefixMatrix(prefixMatrix, bombsMatrix);
 
 			Console.WriteLine($"Result sum: {result}");
 		}
@@ -23,9 +24,9 @@ namespace Aliens
 		/*
 		 * Generate random matrix for test
 		 */
-		private static int[,] GenerateMatrix(int length)
+		private static long[,] GenerateMatrix(int length)
 		{
-			int[,] matrix = new int[length, length];
+			long[,] matrix = new long[length, length];
 
 			for (int i = 0; i < length; i++)
 			{
@@ -38,7 +39,7 @@ namespace Aliens
 			return matrix;
 		}
 
-		private static bool TryReadDataFromFile(string fileName, out int[,] matrix)
+		private static bool TryReadDataFromFile(string fileName, out long[,] matrix)
 		{
 			if (!File.Exists(fileName))
 			{
@@ -49,7 +50,7 @@ namespace Aliens
 			string[] lines = File.ReadAllLines(fileName);
 			int lengthLines = lines.Length;
 
-			matrix = new int[lengthLines, lengthLines];
+			matrix = new long[lengthLines, lengthLines];
 
 			for (int i = 0; i < lengthLines; i++)
 			{
@@ -69,10 +70,10 @@ namespace Aliens
 		 * My first solution, but this method is not optimization
 		 * O(n ^ 6)
 		 */
-		private static int GetSumOfSubMatrix(int[,] matrix, out int countOfSubMatrix)
+		private static long GetSumOfSubMatrix(long[,] matrix, out long countOfSubMatrix)
 		{
-			int allSum = 0;
-			int countBomb = 0;
+			long allSum = 0;
+			long countBomb = 0;
 
 			countOfSubMatrix = 0;
 
@@ -87,7 +88,7 @@ namespace Aliens
 					{
 						for (int countElementsInColumn = 1; countElementsInColumn < matrixWidth + 1 - j; countElementsInColumn++)
 						{
-							int sumOfSubMatrix = 0;
+							long sumOfSubMatrix = 0;
 							countOfSubMatrix++;
 
 							for (int n = i; n < countElementsInRow + i && n < matrixHeight; n++)
@@ -128,10 +129,10 @@ namespace Aliens
 		 *
 		 * 45 - it is matrix from 0:0 to 1:1 (subMatrix)
 		 */
-		private static int[,] ConvertMatrixToPrefixMatrix(int[,] matrix)
+		private static long[,] ConvertMatrixToPrefixMatrix(long[,] matrix)
 		{
 			int length = matrix.GetLength(0);
-			int[,] prefixMatrix = new int[length, length];
+			long[,] prefixMatrix = new long[length, length];
 
 			prefixMatrix[0, 0] = matrix[0, 0];
 
@@ -151,10 +152,10 @@ namespace Aliens
 		/*
 		 * Get Prefix matrix with bombs
 		 */
-		private static int[,] GetBombMatrix(int[,] matrix)
+		private static long[,] GetBombMatrix(long[,] matrix)
 		{
 			int length = matrix.GetLength(0);
-			int[,] bombsMatrix = new int[length, length];
+			long[,] bombsMatrix = new long[length, length];
 
 			for (int i = 0; i < length; i++)
 			{
@@ -174,15 +175,18 @@ namespace Aliens
 		 * Second solution with prefix matrix
 		 * O(n ^ 4)
 		 */
-		private static int GetSumOfSubMatrixInPrefixMatrix(int[,] prefixMatrix, int[,] bombsMatrix)
+		private static long GetSumOfSubMatrixInPrefixMatrix(long[,] prefixMatrix, long[,] bombsMatrix)
 		{
-			int resultSum = 0;
-			int length = prefixMatrix.GetLength(0);
-			int count = 0;
+			long resultSum = 0;
+			long length = prefixMatrix.GetLength(0);
+			long count = 0;
+
+			Stopwatch stopwatch = new Stopwatch();
+			stopwatch.Start();
 
 			for (int i = 0; i < length; i++)
 			{
-				Console.WriteLine($"Processing {i + 1} / {length}...");
+				Console.WriteLine($"Processing {i + 1} / {length}... Elapsed time: {stopwatch.Elapsed}");
 
 				for (int j = 0; j < length; j++)
 				{
@@ -190,8 +194,8 @@ namespace Aliens
 					{
 						for (int countElementsInColumn = 1; countElementsInColumn < length + 1 - j; countElementsInColumn++)
 						{
-							int sumOfSubMatrix;
-							int countBombs = 0;
+							long sumOfSubMatrix;
+							long countBombs = 0;
 							count++;
 
 							if (i == 0 && j == 0)
@@ -214,10 +218,10 @@ namespace Aliens
 							}
 							else
 							{
-								int currentMatrix = prefixMatrix[countElementsInRow + i - 1, countElementsInColumn + j - 1];
-								int subMatrixTop = prefixMatrix[i - 1, countElementsInColumn + j - 1];
-								int subMatrixLeft = prefixMatrix[countElementsInRow + i - 1, j - 1];
-								int mergeMatrix = prefixMatrix[i - 1, j - 1];
+								long currentMatrix = prefixMatrix[countElementsInRow + i - 1, countElementsInColumn + j - 1];
+								long subMatrixTop = prefixMatrix[i - 1, countElementsInColumn + j - 1];
+								long subMatrixLeft = prefixMatrix[countElementsInRow + i - 1, j - 1];
+								long mergeMatrix = prefixMatrix[i - 1, j - 1];
 
 								sumOfSubMatrix = currentMatrix - subMatrixTop - subMatrixLeft + mergeMatrix;
 
@@ -239,6 +243,9 @@ namespace Aliens
 					}
 				}
 			}
+
+			Console.WriteLine($"Result time {stopwatch.Elapsed}");
+			stopwatch.Stop();
 
 			return resultSum;
 		}
