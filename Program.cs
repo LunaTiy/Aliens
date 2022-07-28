@@ -1,9 +1,11 @@
 ﻿using System.Linq;
+using System.Threading.Channels;
 
 namespace Aliens
 {
 	public static class Program
 	{
+		// Test file with matrix 4x4 data.txt, working matrix 500x500 in AlienMarking.txt
 		private const string FileName = "AlienMarking.txt";
 
 		public static void Main(string[] args)
@@ -11,7 +13,29 @@ namespace Aliens
 			if (!TryReadDataFromFile(FileName, out int[,] matrix))
 				throw new Exception("Can't read file");
 
-			int sum = GetSumOfElementsOfSubMatrix(matrix, out int countOfSubMatrix);
+			int[,] bombsMatrix = GetBombMatrix(matrix);
+			int[,] prefixMatrix = ConvertMatrixToPrefixMatrix(matrix);
+			int result = GetSumOfSubMatrixInPrefixMatrix(prefixMatrix, bombsMatrix);
+
+			Console.WriteLine($"Result sum: {result}");
+		}
+
+		/*
+		 * Generate random matrix for test
+		 */
+		private static int[,] GenerateMatrix(int length)
+		{
+			int[,] matrix = new int[length, length];
+
+			for (int i = 0; i < length; i++)
+			{
+				for (int j = 0; j < length; j++)
+				{
+					matrix[i, j] = new Random().Next(20);
+				}
+			}
+
+			return matrix;
 		}
 
 		private static bool TryReadDataFromFile(string fileName, out int[,] matrix)
@@ -41,7 +65,11 @@ namespace Aliens
 			return true;
 		}
 
-		private static int GetSumOfElementsOfSubMatrix(int[,] matrix, out int countOfSubMatrix)
+		/*
+		 * My first solution, but this method is not optimization
+		 * O(n ^ 6)
+		 */
+		private static int GetSumOfSubMatrix(int[,] matrix, out int countOfSubMatrix)
 		{
 			int allSum = 0;
 			int countBomb = 0;
@@ -55,8 +83,6 @@ namespace Aliens
 			{
 				for (int j = 0; j < matrixWidth; j++)
 				{
-					Console.WriteLine($"Row: {i}, column: {j}");
-					
 					for (int countElementsInRow = 1; countElementsInRow < matrixHeight + 1 - i; countElementsInRow++)
 					{
 						for (int countElementsInColumn = 1; countElementsInColumn < matrixWidth + 1 - j; countElementsInColumn++)
@@ -86,6 +112,135 @@ namespace Aliens
 			}
 
 			return allSum;
+		}
+
+		/*
+		 * Convert matrix to prefix matrix
+		 *
+		 * Example:
+		 *  __ __ __     __ __ ___
+		 * |10 20 30    |10 30  60
+		 * | 5 10 20 => |15 45  95
+		 * | 2  4  6    |17 51 107
+		 *
+		 * How we get 60? 10 + 20 + 30 (input matrix) = 60 (prefix matrix)
+		 * How we get 45? 10 + 20 + 5 + 10 (input matrix) = 45 (prefix matrix)
+		 *
+		 * 45 - it is matrix from 0:0 to 1:1 (subMatrix)
+		 */
+		private static int[,] ConvertMatrixToPrefixMatrix(int[,] matrix)
+		{
+			int length = matrix.GetLength(0);
+			int[,] prefixMatrix = new int[length, length];
+
+			prefixMatrix[0, 0] = matrix[0, 0];
+
+			for (int i = 1; i < length; i++)
+				prefixMatrix[0, i] = prefixMatrix[0, i - 1] + matrix[0, i];
+
+			for (int i = 1; i < length; i++)
+				prefixMatrix[i, 0] = prefixMatrix[i - 1, 0] + matrix[i, 0];
+
+			for (int i = 1; i < length; i++)
+				for (int j = 1; j < length; j++)
+					prefixMatrix[i, j] = prefixMatrix[i - 1, j] + prefixMatrix[i, j - 1] - prefixMatrix[i - 1, j - 1] + matrix[i, j];
+
+			return prefixMatrix;
+		}
+
+		/*
+		 * Get Prefix matrix with bombs
+		 */
+		private static int[,] GetBombMatrix(int[,] matrix)
+		{
+			int length = matrix.GetLength(0);
+			int[,] bombsMatrix = new int[length, length];
+
+			for (int i = 0; i < length; i++)
+			{
+				for (int j = 0; j < length; j++)
+				{
+					if (matrix[i, j] == -1)
+						bombsMatrix[i, j] = 1;
+					else
+						bombsMatrix[i, j] = 0;
+				}
+			}
+
+			return ConvertMatrixToPrefixMatrix(bombsMatrix);
+		}
+
+		/*
+		 * Second solution with prefix matrix
+		 * O(n ^ 4)
+		 */
+		private static int GetSumOfSubMatrixInPrefixMatrix(int[,] prefixMatrix, int[,] bombsMatrix)
+		{
+			int resultSum = 0;
+			int length = prefixMatrix.GetLength(0);
+			int count = 0;
+
+			for (int i = 0; i < length; i++)
+			{
+				Console.WriteLine($"Processing {i + 1} / {length}...");
+
+				for (int j = 0; j < length; j++)
+				{
+					for (int countElementsInRow = 1; countElementsInRow < length + 1 - i; countElementsInRow++)
+					{
+						for (int countElementsInColumn = 1; countElementsInColumn < length + 1 - j; countElementsInColumn++)
+						{
+							int sumOfSubMatrix;
+							int countBombs = 0;
+							count++;
+
+							if (i == 0 && j == 0)
+							{
+								sumOfSubMatrix = prefixMatrix[countElementsInRow - 1, countElementsInColumn - 1];
+
+								countBombs = bombsMatrix[countElementsInRow - 1, countElementsInColumn - 1];
+							}
+							else if(i == 0)
+							{
+								sumOfSubMatrix = prefixMatrix[countElementsInRow - 1, countElementsInColumn + j - 1] - prefixMatrix[countElementsInRow - 1, j - 1];
+
+								countBombs = bombsMatrix[countElementsInRow - 1, countElementsInColumn + j - 1] - bombsMatrix[countElementsInRow - 1, j - 1];
+							}
+							else if (j == 0)
+							{
+								sumOfSubMatrix = prefixMatrix[countElementsInRow + i - 1, countElementsInColumn - 1] - prefixMatrix[i - 1, countElementsInColumn - 1];
+
+								countBombs = bombsMatrix[countElementsInRow + i - 1, countElementsInColumn - 1] - bombsMatrix[i - 1, countElementsInColumn - 1];
+							}
+							else
+							{
+								int currentMatrix = prefixMatrix[countElementsInRow + i - 1, countElementsInColumn + j - 1];
+								int subMatrixTop = prefixMatrix[i - 1, countElementsInColumn + j - 1];
+								int subMatrixLeft = prefixMatrix[countElementsInRow + i - 1, j - 1];
+								int mergeMatrix = prefixMatrix[i - 1, j - 1];
+
+								sumOfSubMatrix = currentMatrix - subMatrixTop - subMatrixLeft + mergeMatrix;
+
+								countBombs = bombsMatrix[countElementsInRow + i - 1, countElementsInColumn + j - 1] -
+								                 bombsMatrix[i - 1, countElementsInColumn + j - 1] -
+								                 bombsMatrix[countElementsInRow + i - 1, j - 1] +
+								                 bombsMatrix[i - 1, j - 1];
+							}
+
+							if (sumOfSubMatrix % 13 == 0)
+							{
+								sumOfSubMatrix *= (int)Math.Pow(-1, countBombs);
+								resultSum += sumOfSubMatrix;
+
+								//Console.WriteLine($"Count bombs = {countBombs}");
+								//Console.WriteLine($"Sum % 13 in {count} matrix start {i}:{j} end {i + countElementsInRow - 1}:{j + countElementsInColumn - 1} = {sumOfSubMatrix}");
+							}
+						}
+					}
+				}
+			}
+
+			return resultSum;
 		}
 	}
 }
